@@ -17,7 +17,7 @@ LOG = logging.getLogger(__name__)
 
 class QDeviceSelector(QToolBar):
     _device_manager: OnlineDeviceManager
-    _selected_device: UsbDevice | None
+    _selected_device: LabelerDevice | None
 
     selectedDeviceChangedSignal = QtCore.pyqtSignal(name="selectedDeviceChangedSignal")
 
@@ -34,8 +34,11 @@ class QDeviceSelector(QToolBar):
         self._init_connections()
         self._init_layout()
 
+    def start(self) -> None:
+        self.device_manager._refresh_devices() # Call refresh_devices to populate error label if no devices
         self._last_scan_error_changed()
         self.selectedDeviceChangedSignal.emit()
+        
 
     def _init_elements(self) -> None:
         self.device_manager = OnlineDeviceManager()
@@ -51,7 +54,7 @@ class QDeviceSelector(QToolBar):
         old_hashes = {device.hash for device in self.device_manager.devices}
         self._devices.clear()
         for idx, device in enumerate(self.device_manager.devices):
-            self._devices.insertItem(idx, device.product, device.hash)
+            self._devices.insertItem(idx, device.name, device.hash)
             if (
                 self._selected_device is not None
                 and self._selected_device.hash == device.hash
@@ -68,7 +71,7 @@ class QDeviceSelector(QToolBar):
         self._action_devices.setVisible(valid)
         self._action_error_label.setVisible(not valid)
         new_hashes = {device.hash for device in self.device_manager.devices}
-        if new_hashes != old_hashes:
+        if new_hashes != old_hashes or not valid: # Emit if devices changed or no valid device
             self.selectedDeviceChangedSignal.emit()
 
     def _index_changed(self, index) -> None:
@@ -89,7 +92,7 @@ class QDeviceSelector(QToolBar):
         self._action_error_label = self.addWidget(self._error_label)
 
     @property
-    def selected_device(self) -> UsbDevice | None:
+    def selected_device(self) -> LabelerDevice | None:
         device = None
         if self._devices.currentIndex() >= 0:
             device = self.device_manager.devices[self._devices.currentIndex()]

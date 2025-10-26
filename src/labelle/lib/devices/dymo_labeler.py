@@ -16,6 +16,7 @@ from PIL import Image
 from usb.core import NoBackendError, USBError
 
 from labelle.lib.constants import ESC, SYN
+from labelle.lib.devices.labeler_device import LabelerDevice
 from labelle.lib.devices.usb_device import UsbDevice, UsbDeviceError
 from labelle.lib.utils import mm_to_px
 
@@ -234,7 +235,7 @@ class DymoLabelerFunctions:
         LOG.debug(f"Post-send response: {status}")
 
 
-class DymoLabeler:
+class DymoLabeler(LabelerDevice):
     _device: UsbDevice | None
     tape_size_mm: int
 
@@ -255,11 +256,42 @@ class DymoLabeler:
                 f"Unsupported tape size {tape_size_mm}mm. "
                 f"Supported sizes: {self.SUPPORTED_TAPE_SIZES_MM}"
             )
-        self.tape_size_mm = tape_size_mm
+        self._tape_size_mm = tape_size_mm
         self._device = device
 
     @property
-    def height_px(self):
+    def tape_size_mm(self) -> int:
+        return self._tape_size_mm
+
+    @tape_size_mm.setter
+    def tape_size_mm(self, tape_size_mm: int) -> None:
+        if tape_size_mm not in self.SUPPORTED_TAPE_SIZES_MM:
+            raise ValueError(
+                f"Unsupported tape size {tape_size_mm}mm. "
+                f"Supported sizes: {self.SUPPORTED_TAPE_SIZES_MM}"
+            )
+        self._tape_size_mm = tape_size_mm
+
+    @property
+    def device_info(self) -> str:
+        if self._device:
+            return self._device.device_info
+        return "No USB device connected."
+
+    @property
+    def hash(self) -> str:
+        if self._device:
+            return self._device.hash
+        return ""
+
+    @property
+    def name(self) -> str:
+        if self._device:
+            return self._device.name
+        return "Dymo Labeler (No device)"
+
+    @property
+    def height_px(self) -> int:
         return DymoLabelerFunctions.height_px(self.tape_size_mm)
 
     @property
@@ -299,6 +331,14 @@ class DymoLabeler:
             device = None
             LOG.error(e)
         self._device = device
+
+    def connect(self) -> None:
+        if self._device:
+            self._device.connect()
+
+    def disconnect(self) -> None:
+        if self._device:
+            self._device.disconnect()
 
     @property
     def is_ready(self) -> bool:

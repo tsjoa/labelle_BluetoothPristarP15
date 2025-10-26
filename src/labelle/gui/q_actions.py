@@ -23,6 +23,8 @@ class QActions(QWidget):
         self._is_enabled = False
         self._last_error = None
         self._print_button = QPushButton()
+        self.setEnabled(False)  # Disable by default
+        print(f"QActions initialized. isEnabled: {self.isEnabled()}")
 
         self._init_elements()
         self._init_connections()

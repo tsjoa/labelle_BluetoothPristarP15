@@ -17,6 +17,7 @@ from labelle.gui.q_settings_toolbar import QSettingsToolbar, Settings
 from labelle.lib.constants import ICON_DIR
 from labelle.lib.devices.device_manager import DeviceManager
 from labelle.lib.devices.dymo_labeler import DymoLabeler, DymoLabelerPrintError
+from labelle.lib.devices.labeler_device import LabelerDevice  # Added import
 from labelle.lib.env_config import is_verbose_env_vars
 from labelle.lib.logger import configure_logging, set_not_verbose
 from labelle.lib.render_engines import RenderContext
@@ -28,7 +29,7 @@ LOG = logging.getLogger(__name__)
 class LabelleWindow(QWidget):
     _label_bitmap_to_print: Optional[Image.Image]
     _device_manager: DeviceManager
-    _dymo_labeler: DymoLabeler
+    _dymo_labeler: LabelerDevice | None
     _render_context: RenderContext
     _render_widget: QWidget
 
@@ -50,10 +51,13 @@ class LabelleWindow(QWidget):
         self._init_connections()
         self._init_layout()
 
-        self._device_selector.repopulate()
+        self._device_selector.start()
+
+        # self._device_selector.repopulate() # Repopulate is called by _on_device_selected
         self._settings_toolbar.on_settings_changed()
-        self._label_list.populate()
-        self._label_list.render_label()
+        self._label_list.populate() # Add this back
+        # self._label_list.populate() # Populate is called by _on_settings_changed
+        # self._label_list.render_label() # Render is called by _on_settings_changed
 
     def _init_elements(self) -> None:
         self.setWindowTitle("Labelle GUI")
@@ -61,12 +65,8 @@ class LabelleWindow(QWidget):
         self.setGeometry(200, 200, 1100, 400)
 
         self._device_manager = DeviceManager()
-        self._dymo_labeler = DymoLabeler()
-        self._settings_toolbar.update_labeler_context(
-            supported_tape_sizes=self._dymo_labeler.SUPPORTED_TAPE_SIZES_MM,
-            installed_tape_size=self._dymo_labeler.tape_size_mm,
-            minimum_horizontal_margin_mm=self._dymo_labeler.minimum_horizontal_margin_mm,
-        )
+        self._dymo_labeler = None
+        # The settings toolbar will be updated when a device is selected
 
     def _init_connections(self) -> None:
         self._label_list.renderPrintPreviewSignal.connect(self._update_preview_render)
@@ -98,28 +98,41 @@ class LabelleWindow(QWidget):
         self.setLayout(self._window_layout)
 
     def _on_settings_changed(self, settings: Settings) -> None:
-        assert self._dymo_labeler is not None
-        self._dymo_labeler.tape_size_mm = settings.tape_size_mm
-
-        # Update render context
+        # Always initialize render context
         self._render_context = RenderContext(
             foreground_color=settings.foreground_color,
             background_color=settings.background_color,
-            height_px=self._dymo_labeler.height_px,
+            height_px=self._dymo_labeler.height_px if self._dymo_labeler else 96, # Default height if no device
             preview_show_margins=settings.preview_show_margins,
         )
-        self._label_list.update_params(
-            dymo_labeler=self._dymo_labeler,
-            h_margin_mm=settings.horizontal_margin_mm,
-            min_label_width_mm=settings.min_label_width_mm,
-            render_context=self._render_context,
-            justify=settings.justify,
-        )
 
-        is_ready = self._dymo_labeler.is_ready
+        if self._dymo_labeler:
+            self._dymo_labeler.tape_size_mm = settings.tape_size_mm
+
+            self._label_list.update_params(
+                dymo_labeler=self._dymo_labeler,
+                h_margin_mm=settings.horizontal_margin_mm,
+                min_label_width_mm=settings.min_label_width_mm,
+                render_context=self._render_context,
+                justify=settings.justify,
+            )
+
+            is_ready = self._dymo_labeler.is_ready
+        else:
+            is_ready = False
+            self._label_list.update_params( # Update with default values if no device
+                dymo_labeler=None,
+                h_margin_mm=settings.horizontal_margin_mm,
+                min_label_width_mm=settings.min_label_width_mm,
+                render_context=self._render_context,
+                justify=settings.justify,
+            )
+
+
         self._settings_toolbar.setEnabled(is_ready)
         self._label_list.setEnabled(is_ready)
         self._render_widget.setEnabled(is_ready)
+        self._actions.setEnabled(is_ready)
 
     def _update_preview_render(self, preview_bitmap: Image.Image) -> None:
         self._render.update_preview_render(preview_bitmap)
@@ -131,13 +144,37 @@ class LabelleWindow(QWidget):
         try:
             if self._label_bitmap_to_print is None:
                 raise RuntimeError("No label to print! Call update_label_render first.")
-            assert self._dymo_labeler is not None
+            if self._dymo_labeler is None:
+                raise RuntimeError("No labeler device selected.")
             self._dymo_labeler.print(self._label_bitmap_to_print)
-        except DymoLabelerPrintError as err:
+        except Exception as err:  # Catch generic exception for now
             crash_msg_box(self, "Printing Failed!", err)
 
     def _on_device_selected(self) -> None:
-        self._dymo_labeler.device = self._device_selector.selected_device
+        LOG.debug("_on_device_selected called")
+        if self._dymo_labeler:
+            LOG.debug(f"Disconnecting from {self._dymo_labeler.name}")
+            self._dymo_labeler.disconnect()
+
+        self._dymo_labeler = self._device_selector.selected_device
+        LOG.debug(f"Selected device: {self._dymo_labeler}")
+
+        if self._dymo_labeler:
+            LOG.debug(f"Connecting to {self._dymo_labeler.name}")
+            try:
+                self._dymo_labeler.connect()
+                LOG.debug(f"Connection to {self._dymo_labeler.name} successful")
+                self._settings_toolbar.update_labeler_context(
+                    supported_tape_sizes=self._dymo_labeler.SUPPORTED_TAPE_SIZES_MM,
+                    installed_tape_size=self._dymo_labeler.tape_size_mm,
+                    minimum_horizontal_margin_mm=self._dymo_labeler.minimum_horizontal_margin_mm,
+                )
+            except Exception as e:
+                LOG.error(f"Failed to connect to device: {e}")
+                crash_msg_box(self, "Failed to connect to device", e)
+                self._dymo_labeler = None # Set to None if connection fails
+        else:
+            LOG.debug("No device selected")
         self._settings_toolbar.on_settings_changed()
 
 

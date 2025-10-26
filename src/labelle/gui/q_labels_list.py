@@ -155,8 +155,9 @@ class QLabelList(QListWidget):
         return HorizontallyCombinedRenderEngine(render_engines=render_engines)
 
     def render_preview(self) -> None:
-        assert self.dymo_labeler is not None
-        assert self.render_context is not None
+        if self.dymo_labeler is None or self.render_context is None:
+            return
+
         render_engine = PrintPreviewRenderEngine(
             render_engine=self._payload_render_engine,
             justify=self.justify,
@@ -174,8 +175,9 @@ class QLabelList(QListWidget):
         self.renderPrintPreviewSignal.emit(bitmap)
 
     def render_print(self) -> None:
-        assert self.dymo_labeler is not None
-        assert self.render_context is not None
+        if self.dymo_labeler is None or self.render_context is None:
+            return
+
         render_engine = PrintPayloadRenderEngine(
             render_engine=self._payload_render_engine,
             justify=self.justify,

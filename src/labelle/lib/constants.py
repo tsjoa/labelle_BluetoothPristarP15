@@ -30,24 +30,10 @@ except ImportError as error:  # pragma: no cover
     QRCode = None
 
 
-UNCONFIRMED_MESSAGE = (
-    "WARNING: This device is not confirmed to work with this software. Please "
-    "report your experiences in https://github.com/labelle-org/labelle/issues/4"
-)
-SUPPORTED_PRODUCTS = {
-    0x0011: "DYMO LabelMANAGER PC",
-    0x0015: "LabelPoint 350",
-    0x1001: "LabelManager PnP (no mode switch)",
-    0x1002: "LabelManager PnP (mode switch)",
-    0x1003: f"LabelManager 420P (no mode switch) {UNCONFIRMED_MESSAGE}",
-    0x1004: f"LabelManager 420P (mode switch) {UNCONFIRMED_MESSAGE}",
-    0x1005: "LabelManager 280 (no mode switch)",
-    0x1006: "LabelManager 280 (no mode switch)",
-    0x1007: f"LabelManager Wireless PnP (no mode switch) {UNCONFIRMED_MESSAGE}",
-    0x1008: f"LabelManager Wireless PnP (mode switch) {UNCONFIRMED_MESSAGE}",
-    0x1009: f"MobileLabeler {UNCONFIRMED_MESSAGE}",
-}
 DEV_VENDOR = 0x0922
+
+PRISTAR_P15_SERVICE_UUID = "0000ff00-0000-1000-8000-00805f9b34fb"
+PRISTAR_P15_CHAR_UUID = "0000ff02-0000-1000-8000-00805f9b34fb"
 
 PRINTER_INTERFACE_CLASS = 0x07
 HID_INTERFACE_CLASS = 0x03

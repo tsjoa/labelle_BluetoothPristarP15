@@ -118,7 +118,7 @@ class MarginsRenderEngine(RenderEngine):
             )
             vertical_offset_px = self.labeler_vertical_margin_px
 
-        bitmap = Image.new("1", (math.ceil(label_width_px), math.ceil(bitmap_height)))
+        bitmap = Image.new("1", (math.ceil(label_width_px), math.ceil(bitmap_height)), color=1)
         bitmap.paste(
             payload_bitmap, box=(round(horizontal_offset_px), round(vertical_offset_px))
         )

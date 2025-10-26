@@ -11,8 +11,8 @@ from labelle.lib.constants import (
     DEV_VENDOR,
     HID_INTERFACE_CLASS,
     PRINTER_INTERFACE_CLASS,
-    SUPPORTED_PRODUCTS,
 )
+from labelle.lib.devices.labeler_device import LabelerDevice
 
 LOG = logging.getLogger(__name__)
 GITHUB_ISSUE_MAC = "<https://github.com/labelle-org/labelle/issues/5>"
@@ -23,7 +23,7 @@ class UsbDeviceError(RuntimeError):
     pass
 
 
-class UsbDevice:
+class UsbDevice(LabelerDevice):
     _dev: usb.core.Device
     _intf: usb.core.Interface | None
     _devin: usb.core.Endpoint | None
@@ -34,6 +34,10 @@ class UsbDevice:
         self._intf = None
         self._devin = None
         self._devout = None
+
+    @property
+    def name(self) -> str:
+        return self.product or self.vendor_product_id
 
     @property
     def hash(self) -> str:
@@ -87,10 +91,7 @@ class UsbDevice:
 
     @property
     def is_supported(self) -> bool:
-        return (
-            self._is_supported_vendor(self._dev)
-            and self.id_product in SUPPORTED_PRODUCTS
-        )
+        return self._is_supported_vendor(self._dev)
 
     @staticmethod
     def supported_devices() -> set[UsbDevice]:
@@ -270,6 +271,12 @@ class UsbDevice:
         self._intf = intf
         self._devin = devin
         self._devout = devout
+
+    def connect(self) -> None:
+        self.setup()
+
+    def disconnect(self) -> None:
+        self.dispose()
 
     def dispose(self) -> None:
         usb.util.dispose_resources(self._dev)

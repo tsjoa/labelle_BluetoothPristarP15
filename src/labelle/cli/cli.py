@@ -7,6 +7,7 @@
 # === END LICENSE STATEMENT ===
 import logging
 import sys
+import time
 from pathlib import Path
 from typing import List, NoReturn, Optional
 
@@ -28,6 +29,7 @@ from labelle.lib.constants import (
 )
 from labelle.lib.devices.device_manager import DeviceManager, DeviceManagerNoDevices
 from labelle.lib.devices.dymo_labeler import DymoLabeler
+from labelle.lib.devices.labeler_device import LabelerDevice
 from labelle.lib.env_config import is_verbose_env_vars
 from labelle.lib.font_config import (
     DefaultFontStyle,
@@ -186,8 +188,7 @@ def default(
         ),
     ] = None,
     output: Annotated[
-        Output,
-        typer.Option(help="Destination of the label render"),
+        Output, typer.Option(help="Destination of the label render")
     ] = Output.PRINTER,
     font: Annotated[
         Optional[str],
@@ -218,13 +219,9 @@ def default(
     ] = DEFAULT_BARCODE_TYPE,
     barcode_with_text_content: Annotated[
         Optional[str],
-        typer.Option(
-            "--barcode-with-text", help="Barcode with text", rich_help_panel="Elements"
-        ),
+        typer.Option("--barcode-with-text", help="Barcode with text", rich_help_panel="Elements"),
     ] = None,
-    picture: Annotated[
-        Optional[Path], typer.Option(help="Picture", rich_help_panel="Elements")
-    ] = None,
+    picture: Annotated[Optional[Path], typer.Option(help="Picture", rich_help_panel="Elements")] = None,
     margin_px: Annotated[
         float,
         typer.Option(
@@ -581,48 +578,55 @@ def default(
         else None
     )
 
+    labeler: LabelerDevice | None = None
     if output == Output.PRINTER:
         device_manager = get_device_manager()
-        device = device_manager.find_and_select_device(patterns=device_pattern)
-        device.setup()
+        selected_device = device_manager.find_and_select_device(patterns=device_pattern)
+        selected_device.connect()
+        labeler = selected_device
     else:
-        device = None
+        labeler = None
 
-    dymo_labeler = DymoLabeler(tape_size_mm=tape_size_mm, device=device)
+    if labeler is None:
+        raise typer.BadParameter("No labeler device selected or connected.")
     if not render_engines:
         raise typer.BadParameter("No elements to print")
     render_engine = HorizontallyCombinedRenderEngine(render_engines)
     render_context = RenderContext(
         background_color="white",
         foreground_color="black",
-        height_px=dymo_labeler.height_px,
+        height_px=labeler.height_px,
         preview_show_margins=False,
     )
 
     # print or show the label
     render: RenderEngine
-    if output == Output.PRINTER:
-        render = PrintPayloadRenderEngine(
-            render_engine=render_engine,
-            justify=justify,
-            visible_horizontal_margin_px=margin_px,
-            labeler_margin_px=dymo_labeler.labeler_margin_px,
-            max_width_px=max_payload_len_px,
-            min_width_px=min_payload_len_px,
-        )
-        bitmap, _ = render.render_with_meta(render_context)
-        dymo_labeler.print(bitmap)
-    else:
-        render = PrintPreviewRenderEngine(
-            render_engine=render_engine,
-            justify=justify,
-            visible_horizontal_margin_px=margin_px,
-            labeler_margin_px=dymo_labeler.labeler_margin_px,
-            max_width_px=max_payload_len_px,
-            min_width_px=min_payload_len_px,
-        )
-        bitmap = render.render(render_context)
-        output_bitmap(bitmap, output)
+    try:
+        if output == Output.PRINTER:
+            render = PrintPayloadRenderEngine(
+                render_engine=render_engine,
+                justify=justify,
+                visible_horizontal_margin_px=margin_px,
+                labeler_margin_px=labeler.labeler_margin_px,
+                max_width_px=max_payload_len_px,
+                min_width_px=min_payload_len_px,
+            )
+            bitmap, _ = render.render_with_meta(render_context)
+            labeler.print(bitmap)
+        else:
+            render = PrintPreviewRenderEngine(
+                render_engine=render_engine,
+                justify=justify,
+                visible_horizontal_margin_px=margin_px,
+                labeler_margin_px=labeler.labeler_margin_px,
+                max_width_px=max_payload_len_px,
+                min_width_px=min_payload_len_px,
+            )
+            bitmap = render.render(render_context)
+            output_bitmap(bitmap, output)
+    finally:
+        if output == Output.PRINTER and labeler:
+            labeler.disconnect()
 
 
 def main() -> None:

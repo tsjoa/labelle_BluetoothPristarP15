@@ -23,6 +23,8 @@ dependencies = [
     "PyQt6",
     "darkdetect",
     "typer>=0.16.0",
+    "bluepy",
+    "matplotlib",
 ]
 classifiers = [
     "Operating System :: POSIX :: Linux",

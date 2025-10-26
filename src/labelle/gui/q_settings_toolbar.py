@@ -110,7 +110,7 @@ class QSettingsToolbar(QToolBar):
             justify=Direction(self._justify.currentText()),
             min_label_width_mm=self._min_label_width_mm.value(),
             preview_show_margins=self._preview_show_margins.isChecked(),
-            tape_size_mm=self._tape_size_mm.currentData(),
+            tape_size_mm=self._tape_size_mm.currentData() or 12,  # Provide a default value
         )
 
     def on_settings_changed(self) -> None:

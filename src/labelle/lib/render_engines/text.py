@@ -50,11 +50,11 @@ class TextRenderEngine(RenderEngine):
         boxes = (font.getbbox(line) for line in self.text_lines)
         line_widths = (right - left for left, _top, right, _bottom in boxes)
         label_width_px = max(line_widths) + (font_offset_px * 2)
-        bitmap = Image.new("1", (label_width_px, height_px))
+        bitmap = Image.new("1", (label_width_px, height_px), color=1)
         with draw_image(bitmap) as draw:
             # draw frame into empty image
             if frame_width_px:
-                draw.rectangle(((0, 4), (label_width_px - 1, height_px - 4)), fill=1)
+                draw.rectangle(((0, 4), (label_width_px - 1, height_px - 4)), fill=0)
                 draw.rectangle(
                     (
                         (frame_width_px, 4 + frame_width_px),
@@ -63,7 +63,7 @@ class TextRenderEngine(RenderEngine):
                             height_px - (frame_width_px + 4),
                         ),
                     ),
-                    fill=0,
+                    fill=1,
                 )
 
             # write the text into the empty image
@@ -74,6 +74,6 @@ class TextRenderEngine(RenderEngine):
                 align=self.align.value,
                 anchor="mm",
                 font=font,
-                fill=1,
+                fill=0,
             )
         return bitmap
